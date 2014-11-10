@@ -2792,6 +2792,35 @@ void Executor::terminateStateOnError(ExecutionState &state,
   terminateState(state);
 }
 
+//handling function when identifying undefined behaviors
+void Executor::handleUndefinedBehavior(ExecutionState &state,
+                                     const llvm::Twine &messaget,
+                                     const char *suffix,
+                                     const llvm::Twine &info) {
+  std::string message = messaget.str();
+  Instruction * lastInst;
+  const InstructionInfo &ii = getLastNonKleeInternalInstruction(state, &lastInst);
+  if (ii.file != "") {
+    klee_warning_color("%s:%d: %s", ii.file.c_str(), ii.line, message.c_str());
+  } else {
+    klee_warning_color("(location information missing) %s", message.c_str());
+  }
+  std::string MsgString;
+  llvm::raw_string_ostream msg(MsgString);
+  msg << "Undefined Behavior: " << message << "\n";
+  if (ii.file != "") {
+    msg << "File: " << ii.file << "\n";
+    msg << "Line: " << ii.line << "\n";
+    msg << "assembly.ll line: " << ii.assemblyLine << "\n";
+  }
+  msg << "Stack: \n";
+  state.dumpStack(msg);
+  std::string info_str = info.str();
+  if (info_str != "")
+  msg << "Info: \n" << info_str;
+  interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
+}
+
 // XXX shoot me
 static const char *okExternalsList[] = { "printf", 
                                          "fprintf", 

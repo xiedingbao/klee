@@ -132,6 +132,21 @@ namespace klee {
     HANDLER(handleUnderConstrained);
     HANDLER(handleWarning);
     HANDLER(handleWarningOnce);
+    //handling ubsan_xxx function 
+    HANDLER(handleAddOverflow);
+    HANDLER(handleMulOverflow);
+    HANDLER(handleSubOverflow);
+    HANDLER(handleNegateOverflow);
+    HANDLER(handleDivremOverflow);
+    HANDLER(handleOutOfBound);
+    HANDLER(handleTypeMismatch);
+    HANDLER(handleShiftOutOfBound);
+    HANDLER(handleUnreachable);
+    HANDLER(handleBoundNotPositive);
+    HANDLER(handleLoadInvalidValue);
+    HANDLER(handleMissingReturn);
+    HANDLER(handleFloatCastOverflow);
+    HANDLER(handleFunctionTypeMismatch);
 #undef HANDLER
   };
 } // End klee namespace

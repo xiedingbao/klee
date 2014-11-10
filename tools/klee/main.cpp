@@ -333,7 +333,11 @@ KleeHandler::KleeHandler(int argc, char **argv)
   std::string file_path = getOutputFilename("warnings.txt");
   if ((klee_warning_file = fopen(file_path.c_str(), "w")) == NULL)
     klee_error("cannot open file \"%s\": %s", file_path.c_str(), strerror(errno));
-
+ 
+  // open undefined_behaviors.txt
+  file_path = getOutputFilename("undefined_behaviors.txt");
+  if ((klee_ub_file = fopen(file_path.c_str(), "w")) == NULL)
+    klee_error("cannot open file \"%s\": %s", file_path.c_str(), strerror(errno));
   // open messages.txt
   file_path = getOutputFilename("messages.txt");
   if ((klee_message_file = fopen(file_path.c_str(), "w")) == NULL)
@@ -760,6 +764,20 @@ static const char *modelledExternals[] = {
   "_Znwj", 
   "_Znam", 
   "_Znwm", 
+  "__ubsan_handle_add_overflow",
+  "__ubsan_handle_sub_overflow",
+  "__ubsan_handle_mul_overflow",
+  "__ubsan_handle_negate_overflow",
+  "__ubsan_handle_divrem_overflow",
+  "__ubsan_handle_out_of_bounds",
+  "__ubsan_handle_type_mismatch",
+  "__ubsan_handle_shift_out_of_bounds",
+  "__ubsan_handle_builtin_unreachable",
+  "__ubsan_handle_vla_bound_not_positive",
+  "__ubsan_handle_load_invalid_value",
+  "__ubsan_handle_missing_return",
+  "__ubsan_handle_float_cast_overflow",
+  "__ubsan_handle_function_type_mismatch",
 };
 // Symbols we aren't going to warn about
 static const char *dontCareExternals[] = {

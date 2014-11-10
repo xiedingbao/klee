@@ -19,10 +19,29 @@
 
 #include <set>
 
+#define _RESET   "\033[0m"
+#define _BLACK   "\033[30m"      /* Black */
+#define _RED     "\033[31m"      /* Red */
+#define _GREEN   "\033[32m"      /* Green */
+#define _YELLOW  "\033[33m"      /* Yellow */
+#define _BLUE    "\033[34m"      /* Blue */
+#define _MAGENTA "\033[35m"      /* Magenta */
+#define _CYAN    "\033[36m"      /* Cyan */
+#define _WHITE   "\033[37m"      /* White */
+#define _BOLDBLACK   "\033[1m\033[30m"      /* Bold Black */
+#define _BOLDRED     "\033[1m\033[31m"      /* Bold Red */
+#define _BOLDGREEN   "\033[1m\033[32m"      /* Bold Green */
+#define _BOLDYELLOW  "\033[1m\033[33m"      /* Bold Yellow */
+#define _BOLDBLUE    "\033[1m\033[34m"      /* Bold Blue */
+#define _BOLDMAGENTA "\033[1m\033[35m"      /* Bold Magenta */
+#define _BOLDCYAN    "\033[1m\033[36m"      /* Bold Cyan */
+#define _BOLDWHITE   "\033[1m\033[37m"      /* Bold White */
+
 using namespace klee;
 
 FILE* klee::klee_warning_file = NULL;
 FILE* klee::klee_message_file = NULL;
+FILE* klee::klee_ub_file = NULL;
 
 static const char* warningPrefix = "WARNING";
 static const char* warningOncePrefix = "WARNING ONCE";
@@ -165,4 +184,21 @@ void klee::klee_warning_once(const void *id, const char *msg, ...) {
     klee_vmessage(warningOncePrefix, false, msg, ap);
     va_end(ap);
   }
+}
+//Dingbao Xie
+void klee::klee_warning_color(const char *msg, ...) {
+  va_list ap;
+  va_start(ap, msg);
+  fprintf(stderr, _BOLDRED "\nUndefined Behavior: " );
+  fprintf(stderr, _BOLDWHITE);
+  vfprintf(stderr, msg, ap);
+  fprintf(stderr, "\n" _RESET);
+  fflush(stderr);  
+  va_end(ap);
+  va_start(ap, msg);
+  fprintf(klee_ub_file, "Undefined Behavior: ");
+  vfprintf(klee_ub_file, msg, ap);
+  fprintf(klee_ub_file, "\n");
+  fflush(klee_ub_file);
+  va_end(ap);
 }

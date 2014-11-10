@@ -107,7 +107,21 @@ static SpecialFunctionHandler::HandlerInfo handlerInfo[] = {
   add("_Znam", handleNewArray, true),
   // operator new(unsigned long)
   add("_Znwm", handleNew, true),
-
+ // clang -fsanitize = undefined
+  add("__ubsan_handle_add_overflow", handleAddOverflow, false),
+  add("__ubsan_handle_sub_overflow", handleSubOverflow, false),
+  add("__ubsan_handle_mul_overflow", handleMulOverflow, false),
+  add("__ubsan_handle_negate_overflow", handleNegateOverflow, false),
+  add("__ubsan_handle_divrem_overflow", handleDivremOverflow, false),
+  add("__ubsan_handle_out_of_bounds", handleOutOfBound, false),
+  add("__ubsan_handle_type_mismatch", handleTypeMismatch, false),
+  add("__ubsan_handle_shift_out_of_bounds", handleShiftOutOfBound, false),
+  add("__ubsan_handle_builtin_unreachable", handleUnreachable, false),
+  add("__ubsan_handle_vla_bound_not_positive", handleUnreachable, false),
+  add("__ubsan_handle_load_invalid_value", handleLoadInvalidValue, false),
+  add("__ubsan_handle_missing_return", handleMissingReturn, false),
+  add("__ubsan_handle_float_cast_overflow", handleFloatCastOverflow, false),
+  add("__ubsan_handle_function_type_mismatch", handleFunctionTypeMismatch, false),
 #undef addDNR
 #undef add  
 };
@@ -706,4 +720,129 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
     assert(!mo->isLocal);
     mo->isGlobal = true;
   }
+}
+//Special functions to handle undefined behaviors
+
+void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+  assert(arguments.size()==3 &&"invalid number of arguments to add");
+  executor.handleUndefinedBehavior(state,
+                                 "integer overflow on addition",
+                                 "integer.overflow.ub");
+}
+
+void SpecialFunctionHandler::handleSubOverflow(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+  assert(arguments.size()==3 && "invalid number of arguments to sub");
+  executor.handleUndefinedBehavior(state,
+                                 "integer overflow on subtraction",
+                                 "integer.overflow.ub");
+}
+
+void SpecialFunctionHandler::handleMulOverflow(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+  assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "integer overflow on multiplication",
+                                 "integer.overflow.ub");
+}
+
+void SpecialFunctionHandler::handleNegateOverflow(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "integer overflow on negation",
+                                 "integer.overflow.ub");
+}
+
+void SpecialFunctionHandler::handleDivremOverflow(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "integer overflow on division",
+                                 "integer.overflow.ub");
+}
+
+void SpecialFunctionHandler::handleOutOfBound(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "Array out of bound",
+                                 "array.outofbound.ub");
+}
+void SpecialFunctionHandler::handleTypeMismatch(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "Type Mismatch",
+                                 "type.mismatch.ub");
+}
+
+void SpecialFunctionHandler::handleShiftOutOfBound(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "Shift out of bounds",
+                                 "shift.out.of.bounds.ub");
+}
+void SpecialFunctionHandler::handleUnreachable(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "execution reached a __builtin_unreachable() call",
+                                 "unreach.ub");
+}
+
+void SpecialFunctionHandler::handleBoundNotPositive(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "declared as an array with a negative size",
+                                 "Negative.size.ub");
+}
+
+void SpecialFunctionHandler::handleLoadInvalidValue(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ 
+  executor.handleUndefinedBehavior(state,
+                                 "load of value , which is not a valid value for type ",
+                                 "Load.invalid.value.ub");
+}
+
+void SpecialFunctionHandler::handleMissingReturn(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "execution reached the end of a value-returning function without returning a value",
+                                 "Missing.return.ub");
+}
+
+void SpecialFunctionHandler::handleFloatCastOverflow(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "value 0 is outside the range of representable values of type 1",
+                                 "Float.cast.overflow.ub");
+}
+
+void SpecialFunctionHandler::handleFunctionTypeMismatch(ExecutionState &state,
+                                               KInstruction *target,
+                                               std::vector<ref<Expr> > &arguments) {
+ // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  executor.handleUndefinedBehavior(state,
+                                 "call to function %0 through pointer to incorrect function type %1",
+                                 "Funtion.type.mismatch.ub");
 }

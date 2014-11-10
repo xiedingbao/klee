@@ -24,7 +24,7 @@ namespace klee {
 
   extern FILE* klee_warning_file;
   extern FILE* klee_message_file;
-
+  extern FILE* klee_ub_file;
   /// Print "KLEE: ERROR" followed by the msg in printf format and a
   /// newline on stderr and to warnings.txt, then exit with an error.
   void klee_error(const char *msg, ...)
@@ -51,6 +51,10 @@ namespace klee {
   void klee_warning_once(const void *id,
                          const char *msg, ...)
     __attribute__ ((format (printf, 2, 3)));
+    
+   // Print information of undefined behaviors
+  void klee_warning_color(const char *msg, ...)
+    __attribute__ ((format (printf, 1, 2)));
 }
 
 #endif /* __KLEE_COMMON_H__ */

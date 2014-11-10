@@ -367,6 +367,12 @@ private:
                                  const llvm::Twine &info="") {
     terminateStateOnError(state, message, "exec.err", info);
   }
+  
+  //call undefined behavior handler and generate test case
+  void handleUndefinedBehavior(ExecutionState &state, 
+                             const llvm::Twine &message,
+                             const char *suffix,
+                             const llvm::Twine &longMessage="");
 
   /// bindModuleConstants - Initialize the module constant table.
   void bindModuleConstants();
