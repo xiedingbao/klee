@@ -53,7 +53,7 @@ namespace klee {
     __attribute__ ((format (printf, 2, 3)));
     
    // Print information of undefined behaviors
-  void klee_warning_color(const char *msg, ...)
+  void klee_warning_ub(const char *msg, ...)
     __attribute__ ((format (printf, 1, 2)));
 }
 

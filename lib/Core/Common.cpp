@@ -185,20 +185,25 @@ void klee::klee_warning_once(const void *id, const char *msg, ...) {
     va_end(ap);
   }
 }
-//Dingbao Xie
-void klee::klee_warning_color(const char *msg, ...) {
-  va_list ap;
-  va_start(ap, msg);
-  fprintf(stderr, _BOLDRED "\nUndefined Behavior: " );
-  fprintf(stderr, _BOLDWHITE);
-  vfprintf(stderr, msg, ap);
-  fprintf(stderr, "\n" _RESET);
-  fflush(stderr);  
-  va_end(ap);
-  va_start(ap, msg);
-  fprintf(klee_ub_file, "Undefined Behavior: ");
-  vfprintf(klee_ub_file, msg, ap);
-  fprintf(klee_ub_file, "\n");
-  fflush(klee_ub_file);
-  va_end(ap);
+//warning once
+void klee::klee_warning_ub(const char *msg, ...) {
+  static std::set<const char*> keys;
+  const char* key = msg;
+  if (!keys.count(key)) {
+    keys.insert(key);
+    va_list ap;
+    va_start(ap, msg);
+    fprintf(stderr, _BOLDRED "\nUndefined Behavior: " );
+    fprintf(stderr, _BOLDWHITE);
+    vfprintf(stderr, msg, ap);
+    fprintf(stderr, "\n" _RESET);
+    fflush(stderr);  
+    va_end(ap);
+    va_start(ap, msg);
+    fprintf(klee_ub_file, "Undefined Behavior: ");
+    vfprintf(klee_ub_file, msg, ap);
+    fprintf(klee_ub_file, "\n");
+    fflush(klee_ub_file);
+    va_end(ap);
+   }
 }

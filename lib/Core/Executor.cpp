@@ -2801,9 +2801,9 @@ void Executor::handleUndefinedBehavior(ExecutionState &state,
   Instruction * lastInst;
   const InstructionInfo &ii = getLastNonKleeInternalInstruction(state, &lastInst);
   if (ii.file != "") {
-    klee_warning_color("%s:%d: %s", ii.file.c_str(), ii.line, message.c_str());
+    klee_warning_ub("%s:%d: %s", ii.file.c_str(), ii.line, message.c_str());
   } else {
-    klee_warning_color("(location information missing) %s", message.c_str());
+    klee_warning_ub("(location information missing) %s", message.c_str());
   }
   std::string MsgString;
   llvm::raw_string_ostream msg(MsgString);
