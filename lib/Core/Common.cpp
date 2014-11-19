@@ -187,10 +187,10 @@ void klee::klee_warning_once(const void *id, const char *msg, ...) {
 }
 //warning once
 void klee::klee_warning_ub(const char *msg, ...) {
-  static std::set<const char*> keys;
-  const char* key = msg;
-  if (!keys.count(key)) {
-    keys.insert(key);
+ // static std::set<const char*> keys;
+ // const char* key = msg;
+ // if (!keys.count(key)) {
+ //   keys.insert(key);
     va_list ap;
     va_start(ap, msg);
     fprintf(stderr, _BOLDRED "\nUndefined Behavior: " );
@@ -205,5 +205,5 @@ void klee::klee_warning_ub(const char *msg, ...) {
     fprintf(klee_ub_file, "\n");
     fflush(klee_ub_file);
     va_end(ap);
-   }
+  // }
 }

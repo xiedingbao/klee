@@ -8,7 +8,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Common.h"
-
+#include <iostream>
 #include "Memory.h"
 #include "SpecialFunctionHandler.h"
 #include "TimingSolver.h"
@@ -727,8 +727,18 @@ void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
   assert(arguments.size()==3 &&"invalid number of arguments to add");
+//  std::cout<<arguments[0]<<","<<arguments[2]<<"\n";
+  std::string op1_str="undef", op2_str="undef";
+  ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
+    CE->toString(op1_str);
+  }
+  ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
+    CE->toString(op2_str);
+  }
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on addition",
+                                 "integer overflow on addition: "+op1_str+" + "+op2_str,
                                  "integer.overflow.ub");
 }
 
