@@ -723,19 +723,25 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
 }
 //Special functions to handle undefined behaviors
 
+std::string int2str(uint64_t num){
+  char ch[256];
+  sprintf(ch, "%ld", num);
+  return std::string(ch);
+}
+
 void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
   assert(arguments.size()==3 &&"invalid number of arguments to add");
 //  std::cout<<arguments[0]<<","<<arguments[2]<<"\n";
-  std::string op1_str="undef", op2_str="undef";
+  std::string op1_str="symbolic", op2_str="symbolic";
   ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
-    CE->toString(op1_str);
+    op1_str = int2str(CE->getZExtValue());
   }
   ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
-    CE->toString(op2_str);
+    op2_str = int2str(CE->getZExtValue());
   }
   executor.handleUndefinedBehavior(state,
                                  "integer overflow on addition: "+op1_str+" + "+op2_str,
@@ -746,8 +752,18 @@ void SpecialFunctionHandler::handleSubOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
   assert(arguments.size()==3 && "invalid number of arguments to sub");
+  std::string op1_str="symbolic", op2_str="symbolic";
+  ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
+     op1_str = int2str(CE->getZExtValue());
+  }
+  ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
+    op2_str = int2str(CE->getZExtValue());
+  }
+  
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on subtraction",
+                                 "integer overflow on subtraction: "+op1_str+" - "+op2_str,
                                  "integer.overflow.ub");
 }
 
@@ -755,8 +771,18 @@ void SpecialFunctionHandler::handleMulOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
   assert(arguments.size()==3 && "invalid number of arguments to mul");
+  std::string op1_str="symbolic", op2_str="symbolic";
+  ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
+     op1_str = int2str(CE->getZExtValue());
+  }
+  ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
+    op2_str = int2str(CE->getZExtValue());
+  }
+  
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on multiplication",
+                                 "integer overflow on multiplication: "+op1_str+" * "+op2_str,
                                  "integer.overflow.ub");
 }
 
@@ -764,17 +790,31 @@ void SpecialFunctionHandler::handleNegateOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
  // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  std::string op_str="symbolic";
+  ref<Expr> op =  executor.toUnique(state, arguments[1]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op)) {
+     op_str = int2str(CE->getZExtValue());
+  }
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on negation",
+                                 "integer overflow on negation: "+op_str,
                                  "integer.overflow.ub");
 }
 
 void SpecialFunctionHandler::handleDivremOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+  assert(arguments.size()==3 && "invalid number of arguments to div");
+  std::string op1_str="symbolic", op2_str="symbolic";
+  ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
+     op1_str = int2str(CE->getZExtValue());
+  }
+    ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
+    op2_str = int2str(CE->getZExtValue());
+  }
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on division",
+                                 "integer overflow on division: "+op1_str+" / "+op2_str,
                                  "integer.overflow.ub");
 }
 

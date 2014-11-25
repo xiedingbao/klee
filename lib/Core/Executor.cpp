@@ -1037,10 +1037,13 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
   // Determine if this is a constant or not.
   if (vnumber < 0) {
     unsigned index = -vnumber - 2;
+    //printf("local constant\n");
     return kmodule->constantTable[index];
   } else {
     unsigned index = vnumber;
     StackFrame &sf = state.stack.back();
+    //printf("local variable: %d\n", index);
+   // assert(sf.locals[index].value.get() != 0);
     return sf.locals[index];
   }
 }
@@ -2480,7 +2483,7 @@ void Executor::bindModuleConstants() {
 
 void Executor::run(ExecutionState &initialState) {
   bindModuleConstants();
-
+//assert(initialState.stack.back().locals[0].value.get()!=0);
   // Delay init till now so that ticks don't accrue during
   // optimization and such.
   initTimers();
@@ -2557,10 +2560,12 @@ void Executor::run(ExecutionState &initialState) {
 
   while (!states.empty() && !haltExecution) {
     ExecutionState &state = searcher->selectState();
+
     KInstruction *ki = state.pc;
     stepInstruction(state);
-
+    
     executeInstruction(state, ki);
+  //  assert(state.stack.back().locals[0].value.get()!=0);
     processTimers(&state, MaxInstructionTime);
 
     if (MaxMemory) {
@@ -2598,7 +2603,6 @@ void Executor::run(ExecutionState &initialState) {
         }
       }
     }
-
     updateStates(&state);
   }
 
@@ -2976,7 +2980,7 @@ void Executor::executeAlloc(ExecutionState &state,
                             bool zeroMemory,
                             const ObjectState *reallocFrom) {
   size = toUnique(state, size);
-  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {
+  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(size)) {	
     MemoryObject *mo = memory->allocate(CE->getZExtValue(), isLocal, false, 
                                         state.prevPC->inst);
     if (!mo) {
@@ -2986,11 +2990,10 @@ void Executor::executeAlloc(ExecutionState &state,
       ObjectState *os = bindObjectInState(state, mo, isLocal);
       if (zeroMemory) {
         os->initializeToZero();
-      } else {
+      } else { 
         os->initializeToRandom();
       }
       bindLocal(target, state, mo->getBaseExpr());
-      
       if (reallocFrom) {
         unsigned count = std::min(reallocFrom->size, os->size);
         for (unsigned i=0; i<count; i++)
@@ -3429,11 +3432,12 @@ void Executor::runFunctionAsMain(Function *f,
       }
     }
   }
-  
+ // assert(state->stack.back().locals[0].value.get()!=0);
   initializeGlobals(*state);
 
   processTree = new PTree(state);
   state->ptreeNode = processTree->root;
+ //   assert(state->stack.back().locals[0].value.get()!=0);
   run(*state);
   delete processTree;
   processTree = 0;

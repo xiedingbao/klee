@@ -123,7 +123,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
       case Intrinsic::uadd_with_overflow:
       case Intrinsic::usub_with_overflow:
       case Intrinsic::umul_with_overflow: {
-        IRBuilder<> builder(ii->getParent(), ii);
+  /*      IRBuilder<> builder(ii->getParent(), ii);
         Function *F = builder.GetInsertBlock()->getParent();
 
         Value *op1 = ii->getArgOperand(0);
@@ -170,7 +170,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
 
           result = builder.CreateMul(op1, op2);
           overflow = phi_of;
-          block_split = true;
+          block_split = true;*/
 	  /* my implementation
           Value *one = ConstantInt::getSigned(op1->getType(), 1);
           Value *op1_g1 = builder.CreateICmpUGT(op1, one);
@@ -183,15 +183,15 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
           Value *overflow1 = builder.CreateICmpUGT(op2, div1);
 	  overflow = builder.CreateAnd(may_of, overflow1);
 	  result = builder.CreateMul(op1, op2);*/
-        }
+//        }
 
-        Value *resultStruct =
-          builder.CreateInsertValue(UndefValue::get(ii->getType()), result, 0);
-        resultStruct = builder.CreateInsertValue(resultStruct, overflow, 1);
-        ii->replaceAllUsesWith(resultStruct);
-        ii->removeFromParent();
-        delete ii;
-        dirty = true;
+//        Value *resultStruct =
+//        builder.CreateInsertValue(UndefValue::get(ii->getType()), result, 0);
+//        resultStruct = builder.CreateInsertValue(resultStruct, overflow, 1);
+//        ii->replaceAllUsesWith(resultStruct);
+//        ii->removeFromParent();
+//        delete ii;
+//       dirty = true;
         break;
       }
       case Intrinsic::sadd_with_overflow:

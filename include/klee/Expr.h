@@ -406,7 +406,7 @@ public:
   }
 
   static ref<ConstantExpr> alloc(uint64_t v, Width w) {
-    return alloc(llvm::APInt(w, v));
+    return alloc(llvm::APInt(w, v)); //w:width, v: value
   }
   
   static ref<ConstantExpr> create(uint64_t v, Width w) {
