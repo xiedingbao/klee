@@ -212,6 +212,14 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
                                              APInt::getSignedMinValue(bit_size));
 	Value *zero = ConstantInt::getSigned(op1->getType(), 0);
 	
+	Value *precond_1_1 = builder.CreateICmpSGE(op1, int_min);
+	Value *precond_1_2 = builder.CreateICmpSLE(op1, int_max);
+	Value *precond_1 = builder.CreateAnd(precond_1_1, precond_1_2);
+	Value *precond_2_1 = builder.CreateICmpSGE(op2, int_min);
+	Value *precond_2_2 = builder.CreateICmpSLE(op2, int_max);
+	Value *precond_2 = builder.CreateAnd(precond_2_1, precond_2_2);
+	Value *precond = builder.CreateAnd(precond_1, precond_2);
+	
         if (ii->getIntrinsicID() == Intrinsic::sadd_with_overflow){
           result = builder.CreateAdd(op1, op2);
 	  Value *op2_gt0 = builder.CreateICmpSGT(op2, zero);  	  
@@ -258,7 +266,8 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
 	  overflow = builder.CreateOr(overflow, overflow3);
 	  
         }
-
+	overflow = builder.CreateAnd(precond, overflow);
+	
         Value *resultStruct =
           builder.CreateInsertValue(UndefValue::get(ii->getType()), result, 0);
         resultStruct = builder.CreateInsertValue(resultStruct, overflow, 1);
@@ -318,7 +327,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
         phi_of->addIncoming(neg_op, cont_neg);
         phi_of->addIncoming(op, entry);
 
-	block_split = true; //it's very important to set this flag to be true, otherwise will get stuck
+	block_split = true; //it's very important to set this flag to true, otherwise klee will get stuck
         Value *result = phi_of;
         ii->replaceAllUsesWith(result);
         ii->removeFromParent();

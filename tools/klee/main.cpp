@@ -151,7 +151,7 @@ namespace {
   OptimizeModule("optimize", 
                  cl::desc("Optimize before execution"),
 		 cl::init(false));
-//change the default value to false, as we can check it.
+//set the default value to false, as we can check it.
   cl::opt<bool>
   CheckDivZero("check-div-zero", 
                cl::desc("Inject checks for division-by-zero"),
