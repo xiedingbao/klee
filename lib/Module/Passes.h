@@ -146,6 +146,22 @@ public:
   virtual bool runOnModule(llvm::Module &M);
 };
 
+/// This pass instruments a call to every function.
+/// Example:
+/// \code
+///     void f(int a)
+///     int a;
+///	klee_make_symbolic(&a, sizeof(a), "a");
+///     f(a);
+/// \endcode
+class FunctionCallPass : public llvm::ModulePass {
+  static char ID;
+public:
+  FunctionCallPass(): ModulePass(ID) {}
+  virtual bool runOnModule(llvm::Module &M);
+};
+
+
 /// LowerSwitchPass - Replace all SwitchInst instructions with chained branch
 /// instructions.  Note that this cannot be a BasicBlock pass because it
 /// modifies the CFG!

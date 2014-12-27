@@ -300,8 +300,10 @@ void KModule::prepare(const Interpreter::ModuleOptions &opts,
   // module.
   PassManager pm;
   pm.add(new RaiseAsmPass());
+  pm.add(new FunctionCallPass());
   if (opts.CheckDivZero) pm.add(new DivCheckPass());
   if (opts.CheckOvershift) pm.add(new OvershiftCheckPass());
+  
   // FIXME: This false here is to work around a bug in
   // IntrinsicLowering which caches values which may eventually be
   // deleted (via RAUW). This can be removed once LLVM fixes this

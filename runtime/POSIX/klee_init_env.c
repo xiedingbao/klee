@@ -74,7 +74,7 @@ static char *__get_sym_str(int numChars, char *name) {
 }
 
 static void __add_arg(int *argc, char **argv, char *arg, int argcMax) {
-  if (*argc==argcMax) {
+  if (*argc == argcMax) {
     __emit_error("too many arguments for klee_init_env");
   } else {
     argv[*argc] = arg;

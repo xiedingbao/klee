@@ -444,6 +444,8 @@ public:
                                  char **argv,
                                  char **envp);
 
+  //run program on function level
+  void runFunctionAsMain(llvm::Function *f);
   /*** Runtime options ***/
   
   virtual void setHaltExecution(bool value) {

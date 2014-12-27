@@ -123,7 +123,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
       case Intrinsic::uadd_with_overflow:
       case Intrinsic::usub_with_overflow:
       case Intrinsic::umul_with_overflow: {
-  /*      IRBuilder<> builder(ii->getParent(), ii);
+        IRBuilder<> builder(ii->getParent(), ii);
         Function *F = builder.GetInsertBlock()->getParent();
 
         Value *op1 = ii->getArgOperand(0);
@@ -170,7 +170,7 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
 
           result = builder.CreateMul(op1, op2);
           overflow = phi_of;
-          block_split = true;*/
+          block_split = true;
 	  /* my implementation
           Value *one = ConstantInt::getSigned(op1->getType(), 1);
           Value *op1_g1 = builder.CreateICmpUGT(op1, one);
@@ -183,15 +183,15 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
           Value *overflow1 = builder.CreateICmpUGT(op2, div1);
 	  overflow = builder.CreateAnd(may_of, overflow1);
 	  result = builder.CreateMul(op1, op2);*/
-//        }
+        }
 
-//        Value *resultStruct =
-//        builder.CreateInsertValue(UndefValue::get(ii->getType()), result, 0);
-//        resultStruct = builder.CreateInsertValue(resultStruct, overflow, 1);
-//        ii->replaceAllUsesWith(resultStruct);
-//        ii->removeFromParent();
-//        delete ii;
-//       dirty = true;
+        Value *resultStruct =
+        builder.CreateInsertValue(UndefValue::get(ii->getType()), result, 0);
+        resultStruct = builder.CreateInsertValue(resultStruct, overflow, 1);
+        ii->replaceAllUsesWith(resultStruct);
+        ii->removeFromParent();
+        delete ii;
+        dirty = true;
         break;
       }
       case Intrinsic::sadd_with_overflow:
@@ -211,14 +211,6 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
         Value *int_min = ConstantInt::get(op1->getType(),
                                              APInt::getSignedMinValue(bit_size));
 	Value *zero = ConstantInt::getSigned(op1->getType(), 0);
-	
-	Value *precond_1_1 = builder.CreateICmpSGE(op1, int_min);
-	Value *precond_1_2 = builder.CreateICmpSLE(op1, int_max);
-	Value *precond_1 = builder.CreateAnd(precond_1_1, precond_1_2);
-	Value *precond_2_1 = builder.CreateICmpSGE(op2, int_min);
-	Value *precond_2_2 = builder.CreateICmpSLE(op2, int_max);
-	Value *precond_2 = builder.CreateAnd(precond_2_1, precond_2_2);
-	Value *precond = builder.CreateAnd(precond_1, precond_2);
 	
         if (ii->getIntrinsicID() == Intrinsic::sadd_with_overflow){
           result = builder.CreateAdd(op1, op2);
@@ -266,7 +258,6 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
 	  overflow = builder.CreateOr(overflow, overflow3);
 	  
         }
-	overflow = builder.CreateAnd(precond, overflow);
 	
         Value *resultStruct =
           builder.CreateInsertValue(UndefValue::get(ii->getType()), result, 0);
@@ -278,10 +269,9 @@ bool IntrinsicCleanerPass::runOnBasicBlock(BasicBlock &b, Module &M) {
         dirty = true;
         break;
       }
-      case Intrinsic::objectsize: {
-        //determine the size of the object
+      case Intrinsic::objectsize: {//determine the size of an object       
 	IRBuilder<> builder(ii->getParent(), ii);
-	Value *result = ConstantInt::get(ii->getType(), 0);	;
+	Value *result = ConstantInt::get(ii->getType(), 0);
 	Value *op1 = ii->getArgOperand(0); //pointer
         Value *op2 = ii->getArgOperand(1); //true or false
 	const TargetLibraryInfo *TLI = 0;

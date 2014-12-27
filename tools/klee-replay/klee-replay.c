@@ -360,6 +360,7 @@ int main(int argc, char** argv) {
     } else if (pid == 0) {
       /* Create the input files, pipes, etc., and run the process. */
       replay_create_files(&__exe_fs);
+      //int i;for(i=0;i<prg_argc;i++)printf("%s\n", prg_argv[i]);
       run_monitored(executable, prg_argc, prg_argv);
       _exit(0);
     } else {

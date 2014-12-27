@@ -73,7 +73,9 @@ static void __create_new_dfile(exe_disk_file_t *dfile, unsigned size,
   /* uclibc opendir uses this as its buffer size, try to keep
      reasonable. */
   klee_assume((s->st_blksize & ~0xFFFF) == 0);
-
+  /* st_nlink can't be less than zero, Dingbao Xie */
+  klee_assume(s->st_nlink > 0);
+  
   klee_prefer_cex(s, !(s->st_mode & ~(S_IFMT | 0777)));
   klee_prefer_cex(s, s->st_dev == defaults->st_dev);
   klee_prefer_cex(s, s->st_rdev == defaults->st_rdev);

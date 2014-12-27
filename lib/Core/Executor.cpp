@@ -1042,7 +1042,7 @@ const Cell& Executor::eval(KInstruction *ki, unsigned index,
   } else {
     unsigned index = vnumber;
     StackFrame &sf = state.stack.back();
-    //printf("local variable: %d\n", index);
+    //printf("local variable: %d\n", index);  debug infotmation, Dingbao Xie
    // assert(sf.locals[index].value.get() != 0);
     return sf.locals[index];
   }
@@ -1058,6 +1058,7 @@ void Executor::bindArgument(KFunction *kf, unsigned index,
   getArgumentCell(state, kf, index).value = value;
 }
 
+//evaluate the value of e
 ref<Expr> Executor::toUnique(const ExecutionState &state, 
                              ref<Expr> &e) {
   ref<Expr> result = e;
@@ -3362,7 +3363,6 @@ void Executor::runFunctionAsMain(Function *f,
   // force deterministic initialization of memory objects
   srand(1);
   srandom(1);
-  
   MemoryObject *argvMO = 0;
 
   // In order to make uclibc happy and be closer to what the system is
@@ -3437,7 +3437,7 @@ void Executor::runFunctionAsMain(Function *f,
 
   processTree = new PTree(state);
   state->ptreeNode = processTree->root;
- //   assert(state->stack.back().locals[0].value.get()!=0);
+
   run(*state);
   delete processTree;
   processTree = 0;
@@ -3451,6 +3451,29 @@ void Executor::runFunctionAsMain(Function *f,
 
   if (statsTracker)
     statsTracker->done();
+}
+
+
+void Executor::runFunctionAsMain(Function *f) {
+ /*  std::vector<ref<Expr> > arguments;
+
+  // force deterministic initialization of memory objects
+  srand(1);
+  srandom(1);
+  MemoryObject *argvMO = 0;
+
+  unsigned NumPtrBytes = Context::get().getPointerWidth() / 8;
+  KFunction *kf = kmodule->functionMap[f];
+  assert(kf);
+ for(Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end(); ai != ae; ++ai){
+    Type* tp = ai->getType();
+    switch(tp->TypeID)
+      case IntegerTypeID:
+	 arguments.push_back(ConstantExpr::alloc(argc, Expr::Int32));getPrimitiveSizeInBits()
+	
+    
+  }
+*/ 
 }
 
 unsigned Executor::getPathStreamID(const ExecutionState &state) {

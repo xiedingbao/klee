@@ -362,6 +362,11 @@ public:
     assert(getWidth() <= bits && "Value may be out of range!");
     return value.getZExtValue();
   }
+  
+  int64_t getSExtValue(unsigned bits = 64) const {
+    assert(getWidth() <= bits && "Value may be out of range!");
+    return value.getSExtValue();
+  }
 
   /// getLimitedValue - If this value is smaller than the specified limit,
   /// return it, otherwise return the limit value.

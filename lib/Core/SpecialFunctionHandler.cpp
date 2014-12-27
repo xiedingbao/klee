@@ -723,12 +723,20 @@ void SpecialFunctionHandler::handleMarkGlobal(ExecutionState &state,
 }
 //Special functions to handle undefined behaviors
 
-std::string int2str(uint64_t num){
+std::string int2str(int64_t num){
   char ch[256];
   sprintf(ch, "%ld", num);
   return std::string(ch);
 }
-
+std::string int2str(int64_t num, unsigned width){
+  char ch[256];
+  printf("width: %u\n", width);
+  if(width<=32)
+    sprintf(ch, "%ld", num);
+  else
+    sprintf(ch, "%ld", num);
+  return std::string(ch);
+}
 void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
@@ -737,14 +745,14 @@ void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
   std::string op1_str="symbolic", op2_str="symbolic";
   ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
-    op1_str = int2str(CE->getZExtValue());
+    op1_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
   ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
-    op2_str = int2str(CE->getZExtValue());
+    op2_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on addition: "+op1_str+" + "+op2_str,
+                                 "integer overflow on addition "+op1_str+" + "+op2_str,
                                  "integer.overflow.ub");
 }
 
@@ -755,15 +763,15 @@ void SpecialFunctionHandler::handleSubOverflow(ExecutionState &state,
   std::string op1_str="symbolic", op2_str="symbolic";
   ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
-     op1_str = int2str(CE->getZExtValue());
+   op1_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
   ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
-    op2_str = int2str(CE->getZExtValue());
+    op2_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
   
   executor.handleUndefinedBehavior(state,
-                                 "integer overflow on subtraction: "+op1_str+" - "+op2_str,
+                                 "integer overflow on subtraction "+op1_str+" - "+op2_str,
                                  "integer.overflow.ub");
 }
 
@@ -774,11 +782,11 @@ void SpecialFunctionHandler::handleMulOverflow(ExecutionState &state,
   std::string op1_str="symbolic", op2_str="symbolic";
   ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
-     op1_str = int2str(CE->getZExtValue());
+     op1_str = int2str(CE->getZExtValue(CE->getWidth()));
   }
   ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
-    op2_str = int2str(CE->getZExtValue());
+    op2_str = int2str(CE->getZExtValue(CE->getWidth()));
   }
   
   executor.handleUndefinedBehavior(state,
@@ -793,7 +801,7 @@ void SpecialFunctionHandler::handleNegateOverflow(ExecutionState &state,
   std::string op_str="symbolic";
   ref<Expr> op =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op)) {
-     op_str = int2str(CE->getZExtValue());
+     op_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
   executor.handleUndefinedBehavior(state,
                                  "integer overflow on negation: "+op_str,
@@ -807,11 +815,11 @@ void SpecialFunctionHandler::handleDivremOverflow(ExecutionState &state,
   std::string op1_str="symbolic", op2_str="symbolic";
   ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {
-     op1_str = int2str(CE->getZExtValue());
+     op1_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
     ref<Expr> op2 =  executor.toUnique(state, arguments[2]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op2)) {
-    op2_str = int2str(CE->getZExtValue());
+    op2_str = int2str(CE->getSExtValue(CE->getWidth()));
   }
   executor.handleUndefinedBehavior(state,
                                  "integer overflow on division: "+op1_str+" / "+op2_str,
@@ -821,7 +829,7 @@ void SpecialFunctionHandler::handleDivremOverflow(ExecutionState &state,
 void SpecialFunctionHandler::handleOutOfBound(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+ 
   executor.handleUndefinedBehavior(state,
                                  "Array out of bound",
                                  "array.outofbound.ub");
@@ -829,7 +837,7 @@ void SpecialFunctionHandler::handleOutOfBound(ExecutionState &state,
 void SpecialFunctionHandler::handleTypeMismatch(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+ 
   executor.handleUndefinedBehavior(state,
                                  "Type Mismatch",
                                  "type.mismatch.ub");
@@ -838,7 +846,7 @@ void SpecialFunctionHandler::handleTypeMismatch(ExecutionState &state,
 void SpecialFunctionHandler::handleShiftOutOfBound(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+
   executor.handleUndefinedBehavior(state,
                                  "Shift out of bounds",
                                  "shift.out.of.bounds.ub");
@@ -846,7 +854,7 @@ void SpecialFunctionHandler::handleShiftOutOfBound(ExecutionState &state,
 void SpecialFunctionHandler::handleUnreachable(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+
   executor.handleUndefinedBehavior(state,
                                  "execution reached a __builtin_unreachable() call",
                                  "unreach.ub");
@@ -855,7 +863,7 @@ void SpecialFunctionHandler::handleUnreachable(ExecutionState &state,
 void SpecialFunctionHandler::handleBoundNotPositive(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+
   executor.handleUndefinedBehavior(state,
                                  "declared as an array with a negative size",
                                  "Negative.size.ub");
@@ -873,7 +881,7 @@ void SpecialFunctionHandler::handleLoadInvalidValue(ExecutionState &state,
 void SpecialFunctionHandler::handleMissingReturn(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+
   executor.handleUndefinedBehavior(state,
                                  "execution reached the end of a value-returning function without returning a value",
                                  "Missing.return.ub");
@@ -882,7 +890,7 @@ void SpecialFunctionHandler::handleMissingReturn(ExecutionState &state,
 void SpecialFunctionHandler::handleFloatCastOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+
   executor.handleUndefinedBehavior(state,
                                  "value 0 is outside the range of representable values of type 1",
                                  "Float.cast.overflow.ub");
@@ -891,8 +899,8 @@ void SpecialFunctionHandler::handleFloatCastOverflow(ExecutionState &state,
 void SpecialFunctionHandler::handleFunctionTypeMismatch(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
- // assert(arguments.size()==3 && "invalid number of arguments to mul");
+
   executor.handleUndefinedBehavior(state,
-                                 "call to function %0 through pointer to incorrect function type %1",
+                                 "call to function 0 through pointer to incorrect function type 1",
                                  "Funtion.type.mismatch.ub");
 }

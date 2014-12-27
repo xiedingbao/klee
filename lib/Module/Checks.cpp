@@ -6,11 +6,9 @@
 // License. See LICENSE.TXT for details.
 //
 //===----------------------------------------------------------------------===//
-
+#include <stdio.h>
 #include "Passes.h"
-
 #include "klee/Config/Version.h"
-
 #if LLVM_VERSION_CODE >= LLVM_VERSION(3, 3)
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -33,9 +31,7 @@
 #include "llvm/IntrinsicInst.h"
 #include "llvm/Module.h"
 #include "llvm/Type.h"
-
 #include "llvm/LLVMContext.h"
-
 #if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
 #include "llvm/Target/TargetData.h"
 #else
@@ -45,6 +41,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/IR/IRBuilder.h"
 
 using namespace llvm;
 using namespace klee;
@@ -153,6 +150,63 @@ bool OvershiftCheckPass::runOnModule(Module &M) {
           }
         }
       }
+    }
+  }
+  return moduleChanged;
+}
+
+char FunctionCallPass::ID;
+
+
+bool FunctionCallPass::runOnModule(Module &M) {
+  Function *kleeMakeSymbolic = 0;
+  bool moduleChanged = false;
+  Function *mainFn = M.getFunction("main");
+  assert(mainFn);
+  Instruction* firstInst = mainFn->begin()->begin();
+  IRBuilder<> builder(firstInst->getParent(), firstInst);
+  
+#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
+  TargetDate* dl = new TargetDate(&M); 
+#else
+  DataLayout* dl = new DataLayout(&M); 
+#endif
+  for (Module::iterator f = M.begin(), fe = M.end(); f != fe; ++f) {
+     if (!f->isDeclaration() && &(*f)!=mainFn){
+      std::vector<llvm::Value*> args;
+      printf("function name: %s\n", f->getName().str().c_str());
+      for(Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end(); ai != ae; ++ai){
+	// Lazily bind the function to avoid always importing it.
+        if (!kleeMakeSymbolic) {
+	   LLVM_TYPE_Q llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
+           Constant *fc = M.getOrInsertFunction("klee_make_symbolic",
+						  Type::getVoidTy(getGlobalContext()),
+                                                   PointerType::getUnqual(i8Ty),
+                                                   Type::getInt64Ty(getGlobalContext()),
+                                                   PointerType::getUnqual(i8Ty),
+                                                   NULL);
+           kleeMakeSymbolic = cast<Function>(fc);
+        }
+	Type* tp = ai->getType();     	
+	AllocaInst* arg0 = builder.CreateAlloca(tp);
+        std::vector<Value* > klee_args;
+	klee_args.push_back(builder.CreateBitCast(arg0, 
+						  kleeMakeSymbolic->getFunctionType()->getParamType(0)));
+	
+	klee_args.push_back(ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+						   dl->getTypeAllocSize(tp)));
+	
+	klee_args.push_back(builder.CreateGlobalStringPtr("name"));
+
+	// Inject a call to klee_make_symbolic
+	builder.CreateCall(kleeMakeSymbolic, klee_args);
+	args.push_back(builder.CreateAlignedLoad(arg0, dl->getTypeAllocSize(tp) ));
+        moduleChanged = true;
+      }
+       
+      // Inject a call to the function
+      builder.CreateCall(f, args);
+      moduleChanged = true;
     }
   }
   return moduleChanged;
