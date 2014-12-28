@@ -648,6 +648,7 @@ std::string int2string(int i){
 }
 
 // Dingbao Xie
+/*
 static void instrumentFunctionCall(Module *mainModule){
    Function *mainFn = mainModule->getFunction("main");
    Instruction* firstInst = mainFn->begin()->begin();
@@ -658,33 +659,39 @@ static void instrumentFunctionCall(Module *mainModule){
       //printf("Function name: %s\n", fnIt->getName().data());
       if(fnIt->getName().find("_fake_main")==fnIt->getName().npos)
 	continue;
-      if(fnIt->arg_size() !=0 ){
-	klee_warning("function %s has arguments\n", fnIt->getName().data());
-	continue;
-      }
-      printf("instrument a call to function: %s\n", fnIt->getName().data());
+      assert(fnIt->arg_size() ==0);
       Function* fn = mainModule->getFunction(fnIt->getName().data());
       assert(fn);
       std::vector<Value*> args;
-      /* for(Function::arg_iterator ai = fn->arg_begin(), ae = fn->arg_end(); ai != ae; ++ai){
+       for(Function::arg_iterator ai = fn->arg_begin(), ae = fn->arg_end(); ai != ae; ++ai){
 	Type* tp = ai->getType();      
 	char name[100];
 	sprintf(name, "arg%u", args.size());
         AllocaInst* arg = new AllocaInst(tp, name, firstInst);
 	//args.push_back(arg);
-      }*/
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
-    Instruction* functionCall = CallInst::Create(fn, args, "", firstInst);
-#else
-    Instruction* functionCall = CallInst::Create(fn, args.begin(), args.end(), "", firstInst);
-#endif
-    
-    // if(args.size()!=0)
-     // new StoreInst(zero, args[0], functionCall);
-      
+      }
     }    
   }
+}
+*/
 
+static void runFunction(Module *mainModule, Interpreter *interpreter, 
+		        int argc, char **argv, char **envp){
+   Function *mainFn = mainModule->getFunction("main");
+
+   for (Module::const_iterator fnIt = mainModule->begin(), fn_ie = mainModule->end(); 
+       fnIt != fn_ie; ++fnIt) {
+    if (!fnIt->isDeclaration() && &(*fnIt) != mainFn){
+      StringRef fName = fnIt->getName();
+      if(!fName.endswith("_fake_main"))
+	continue;   
+      printf("Function name: %s\n", fName.data());
+      Function* fn = mainModule->getFunction(fnIt->getName().data());
+      assert(fn);
+      interpreter->runFunctionAsMain(fn, argc, argv, envp);
+    }    
+  }
+  
 }
 
 static int initEnv(Module *mainModule) {
@@ -1202,7 +1209,6 @@ int main(int argc, char **argv, char **envp) {
 #if ENABLE_STPLOG == 1
   STPLOG_init("stplog.c");
 #endif
-
   atexit(llvm_shutdown);  // Call llvm_shutdown() on exit.
   llvm::InitializeNativeTarget();
   parseArguments(argc, argv);
@@ -1212,7 +1218,6 @@ int main(int argc, char **argv, char **envp) {
     if (MaxTime == 0) {
       klee_error("--watchdog used without --max-time");
     }
-
     int pid = fork();
     if (pid < 0) {
       klee_error("unable to fork watchdog");
@@ -1318,7 +1323,6 @@ int main(int argc, char **argv, char **envp) {
   }
 #endif
 
-//  instrumentFunctionCall(mainModule);//run the program in function level
   if (WithPOSIXRuntime) {
     int r = initEnv(mainModule);
     if (r != 0)
@@ -1529,8 +1533,9 @@ int main(int argc, char **argv, char **envp) {
         klee_error("Unable to change directory to: %s", RunInDir.c_str());
       }
     }
-    interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);//start symbolic execution
-
+    //interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);//start symbolic execution
+    runFunction(mainModule, interpreter, pArgc, pArgv, pEnvp);
+   
     while (!seeds.empty()) {
       kTest_free(seeds.back());
       seeds.pop_back();

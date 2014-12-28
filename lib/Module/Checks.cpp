@@ -155,17 +155,16 @@ bool OvershiftCheckPass::runOnModule(Module &M) {
   return moduleChanged;
 }
 
-char FunctionCallPass::ID;
 
+char FunctionCallPass::ID;
 
 bool FunctionCallPass::runOnModule(Module &M) {
   Function *kleeMakeSymbolic = 0;
   bool moduleChanged = false;
   Function *mainFn = M.getFunction("main");
   assert(mainFn);
-  Instruction* firstInst = mainFn->begin()->begin();
-  IRBuilder<> builder(firstInst->getParent(), firstInst);
-  
+ // Instruction* firstInst = mainFn->begin()->begin();
+
 #if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
   TargetDate* dl = new TargetDate(&M); 
 #else
@@ -173,8 +172,24 @@ bool FunctionCallPass::runOnModule(Module &M) {
 #endif
   for (Module::iterator f = M.begin(), fe = M.end(); f != fe; ++f) {
      if (!f->isDeclaration() && &(*f)!=mainFn){
+      if(f->getName().find("_fake_main") != f->getName().npos)
+	continue;
+      if(f->getName().equals("__user_main"))
+	continue;   
+      if(f->getName().equals(" __uClibc_main"))
+	continue;    
       std::vector<llvm::Value*> args;
-      printf("function name: %s\n", f->getName().str().c_str());
+      std::string fName = f->getName().str();
+//      printf("function name: %s\n", fName.c_str());
+      std::vector<LLVM_TYPE_Q Type*> fArgs;
+      Function *fakeMain = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), fArgs, false),
+      			      GlobalVariable::ExternalLinkage,
+      			      Twine(fName+"_fake_main"),
+			      &M);
+      moduleChanged = true;
+      BasicBlock *bb = BasicBlock::Create(getGlobalContext(), "entry", fakeMain);
+      IRBuilder<> builder(bb, bb->begin());
+      
       for(Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end(); ai != ae; ++ai){
 	// Lazily bind the function to avoid always importing it.
         if (!kleeMakeSymbolic) {
@@ -206,6 +221,8 @@ bool FunctionCallPass::runOnModule(Module &M) {
        
       // Inject a call to the function
       builder.CreateCall(f, args);
+   //   builder.CreateUnreachable();// I don't know why, but have to do it to avoid the error
+      builder.CreateRetVoid();
       moduleChanged = true;
     }
   }
