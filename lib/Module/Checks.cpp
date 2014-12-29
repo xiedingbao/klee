@@ -174,13 +174,13 @@ bool FunctionCallPass::runOnModule(Module &M) {
      if (!f->isDeclaration() && &(*f)!=mainFn){
       if(f->getName().find("_fake_main") != f->getName().npos)
 	continue;
-      if(f->getName().equals("__user_main"))
-	continue;   
-      if(f->getName().equals(" __uClibc_main"))
-	continue;    
+//      if(f->getName().equals("__user_main"))
+//	continue;   
+//      if(f->getName().startswith(" __uClibc"))
+//	continue;    
       std::vector<llvm::Value*> args;
       std::string fName = f->getName().str();
-//      printf("function name: %s\n", fName.c_str());
+      printf("instrument a call to function: %s\n", fName.c_str());
       std::vector<LLVM_TYPE_Q Type*> fArgs;
       Function *fakeMain = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), fArgs, false),
       			      GlobalVariable::ExternalLinkage,

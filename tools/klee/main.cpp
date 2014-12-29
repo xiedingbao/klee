@@ -13,6 +13,8 @@
 #include "klee/Internal/Support/Debug.h"
 #include "klee/Internal/Support/ModuleUtil.h"
 #include "klee/Internal/System/Time.h"
+#include "llvm/PassManager.h"
+#include  "../lib/Module/Passes.h"
 
 // FIXME: Ugh, this is gross. But otherwise our config.h conflicts with LLVMs.
 #undef PACKAGE_BUGREPORT
@@ -126,6 +128,11 @@ namespace {
   cl::opt<bool>
   ExitOnError("exit-on-error", 
               cl::desc("Exit if errors occur"));
+  
+  cl::opt<bool>
+  FunctionLevel("function-level", 
+              cl::desc("run the program in function level"),
+	      cl::init(false));
     
 
   enum LibcType {
@@ -675,24 +682,7 @@ static void instrumentFunctionCall(Module *mainModule){
 }
 */
 
-static void runFunction(Module *mainModule, Interpreter *interpreter, 
-		        int argc, char **argv, char **envp){
-   Function *mainFn = mainModule->getFunction("main");
 
-   for (Module::const_iterator fnIt = mainModule->begin(), fn_ie = mainModule->end(); 
-       fnIt != fn_ie; ++fnIt) {
-    if (!fnIt->isDeclaration() && &(*fnIt) != mainFn){
-      StringRef fName = fnIt->getName();
-      if(!fName.endswith("_fake_main"))
-	continue;   
-      printf("Function name: %s\n", fName.data());
-      Function* fn = mainModule->getFunction(fnIt->getName().data());
-      assert(fn);
-      interpreter->runFunctionAsMain(fn, argc, argv, envp);
-    }    
-  }
-  
-}
 
 static int initEnv(Module *mainModule) {
 
@@ -1205,6 +1195,81 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
 }
 #endif
 
+static int runInFunctionLevel(Module *mainModule, Interpreter *interpreter, 
+		        int argc, char **argv, char **envp){
+//   Function *mainFn = mainModule->getFunction("main");
+
+   for (Module::const_iterator fnIt = mainModule->begin(), fn_ie = mainModule->end(); 
+       fnIt != fn_ie; ++fnIt) {
+    if (!fnIt->isDeclaration()){
+      StringRef fName = fnIt->getName();
+      if(!fName.endswith("_fake_main"))
+	continue;   
+      fprintf(stderr, "Start running from function %s\n", fName.data());
+      Function* fn = mainModule->getFunction(fName.data());
+      assert(fn);     
+      if(MaxTime == 0)
+	MaxTime = 100;
+      int pid = fork();
+      if (pid < 0) {
+	klee_error("unable to fork watchdog");
+      } else if (pid) {
+	//fprintf(stderr, "KLEE: WATCHDOG: watching %d\n", pid);
+	fflush(stderr);
+	sys::SetInterruptFunction(interrupt_handle_watchdog);
+	double nextStep = util::getWallTime() + MaxTime*1.1;
+	int level = 0;
+	// Simple stupid code...
+	while (1) {
+	  sleep(1);
+	  int status, res = waitpid(pid, &status, WNOHANG);
+
+	  if (res < 0) {
+	    if (errno==ECHILD) { // No child, no need to watch but
+                               // return error since we didn't catch
+                               // the exit.
+	      fprintf(stderr, "KLEE: watchdog exiting (no child)\n");
+	      break;
+	    } else if (errno!=EINTR) {
+	      perror("watchdog waitpid");
+	      exit(1);
+	    }
+	  } else if (res==pid && WIFEXITED(status)) {
+	      break;
+	  } else {
+	    double time = util::getWallTime();
+	    if (time > nextStep) {
+	      ++level;
+	      if (level==1) {
+		fprintf(stderr, "KLEE: WATCHDOG: time expired, attempting halt via INT\n");
+		kill(pid, SIGINT);
+	      } else if (level==2) {
+		fprintf(stderr, "KLEE: WATCHDOG: time expired, attempting halt via gdb\n");
+		halt_via_gdb(pid);
+	      } else {
+		fprintf(stderr, "KLEE: WATCHDOG: kill(9)ing child (I tried to be nice)\n");
+		kill(pid, SIGKILL);
+		break;
+	      }
+
+	      // Ideally this triggers a dump, which may take a while,
+	      // so try and give the process extra time to clean up.
+	      nextStep = util::getWallTime() + std::max(15., MaxTime*.1);
+	    }
+	  }
+	}
+
+    }
+     else if(pid == 0){//chid process  
+	interpreter->runFunctionAsMain(fn, argc, argv, envp);
+	return 1;
+     }
+    }    
+  }
+  return 0;
+}
+
+
 int main(int argc, char **argv, char **envp) {  
 #if ENABLE_STPLOG == 1
   STPLOG_init("stplog.c");
@@ -1322,6 +1387,12 @@ int main(int argc, char **argv, char **envp) {
                ec.message().c_str());
   }
 #endif
+//add a pass to instrument a call to veery function
+  if(FunctionLevel){
+    PassManager pm;
+    pm.add(new FunctionCallPass());
+    pm.run(*mainModule);
+  }
 
   if (WithPOSIXRuntime) {
     int r = initEnv(mainModule);
@@ -1533,9 +1604,14 @@ int main(int argc, char **argv, char **envp) {
         klee_error("Unable to change directory to: %s", RunInDir.c_str());
       }
     }
-    //interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);//start symbolic execution
-    runFunction(mainModule, interpreter, pArgc, pArgv, pEnvp);
-   
+    //run the program in function level
+    if(FunctionLevel){
+      if(runInFunctionLevel(mainModule, interpreter, pArgc, pArgv, pEnvp))
+	exit(1);
+    }
+    else
+      interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);//start symbolic execution
+    
     while (!seeds.empty()) {
       kTest_free(seeds.back());
       seeds.pop_back();
