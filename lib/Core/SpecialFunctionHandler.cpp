@@ -759,7 +759,8 @@ void SpecialFunctionHandler::handleAddOverflow(ExecutionState &state,
 void SpecialFunctionHandler::handleSubOverflow(ExecutionState &state,
                                                KInstruction *target,
                                                std::vector<ref<Expr> > &arguments) {
-  assert(arguments.size()==3 && "invalid number of arguments to sub");
+  assert(arguments.size()==3 && "invalid number of arguments to __ubsan_handle_sub_overflow");
+
   std::string op1_str="symbolic", op2_str="symbolic";
   ref<Expr> op1 =  executor.toUnique(state, arguments[1]);
   if (ConstantExpr *CE = dyn_cast<ConstantExpr>(op1)) {

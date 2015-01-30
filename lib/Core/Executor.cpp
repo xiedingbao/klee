@@ -3454,27 +3454,6 @@ void Executor::runFunctionAsMain(Function *f,
 }
 
 
-void Executor::runFunctionAsMain(Function *f) {
- /*  std::vector<ref<Expr> > arguments;
-
-  // force deterministic initialization of memory objects
-  srand(1);
-  srandom(1);
-  MemoryObject *argvMO = 0;
-
-  unsigned NumPtrBytes = Context::get().getPointerWidth() / 8;
-  KFunction *kf = kmodule->functionMap[f];
-  assert(kf);
- for(Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end(); ai != ae; ++ai){
-    Type* tp = ai->getType();
-    switch(tp->TypeID)
-      case IntegerTypeID:
-	 arguments.push_back(ConstantExpr::alloc(argc, Expr::Int32));getPrimitiveSizeInBits()
-	
-    
-  }
-*/ 
-}
 
 unsigned Executor::getPathStreamID(const ExecutionState &state) {
   assert(pathWriter);

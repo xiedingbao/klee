@@ -42,7 +42,8 @@
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/IR/IRBuilder.h"
-
+#include "llvm/Support/raw_ostream.h"
+#include <iostream>
 using namespace llvm;
 using namespace klee;
 
@@ -160,27 +161,37 @@ char FunctionCallPass::ID;
 
 bool FunctionCallPass::runOnModule(Module &M) {
   Function *kleeMakeSymbolic = 0;
+  Type *i8Ty = Type::getInt8Ty(getGlobalContext());
+  //FIXME  ITY is an integer that can hold a pointer
+  Type* ITy = Type::getInt64Ty(getGlobalContext());
+  Type *i32Ty = Type::getInt32Ty(getGlobalContext());
+  Type *i1Ty = Type::getInt1Ty(getGlobalContext());
+  
   bool moduleChanged = false;
   Function *mainFn = M.getFunction("main");
   assert(mainFn);
- // Instruction* firstInst = mainFn->begin()->begin();
+  Function* mallocFn = M.getFunction("malloc");
+  assert(mallocFn && "can not find function malloc");
+  std::vector<Type *> arg_type;
+  arg_type.push_back(PointerType::getUnqual(i8Ty));
+  arg_type.push_back(ITy);
+  Function* memsetFn =  Intrinsic::getDeclaration(&M, Intrinsic::memset, arg_type);
+  assert(memsetFn && "can not find function memset");
 
 #if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
-  TargetDate* dl = new TargetDate(&M); 
+  TargetDate* datalayout = new TargetDate(&M); 
 #else
-  DataLayout* dl = new DataLayout(&M); 
+  DataLayout* datalayout = new DataLayout(&M); 
 #endif
+
+  
   for (Module::iterator f = M.begin(), fe = M.end(); f != fe; ++f) {
      if (!f->isDeclaration() && &(*f)!=mainFn){
-      if(f->getName().find("_fake_main") != f->getName().npos)
+      if(f->getName().endswith("_fake_main"))
 	continue;
-//      if(f->getName().equals("__user_main"))
-//	continue;   
-//      if(f->getName().startswith(" __uClibc"))
-//	continue;    
       std::vector<llvm::Value*> args;
       std::string fName = f->getName().str();
-      printf("instrument a call to function: %s\n", fName.c_str());
+//      printf("instrument a call to function: %s\n", fName.c_str());
       std::vector<LLVM_TYPE_Q Type*> fArgs;
       Function *fakeMain = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), fArgs, false),
       			      GlobalVariable::ExternalLinkage,
@@ -193,7 +204,6 @@ bool FunctionCallPass::runOnModule(Module &M) {
       for(Function::arg_iterator ai = f->arg_begin(), ae = f->arg_end(); ai != ae; ++ai){
 	// Lazily bind the function to avoid always importing it.
         if (!kleeMakeSymbolic) {
-	   LLVM_TYPE_Q llvm::Type *i8Ty = Type::getInt8Ty(getGlobalContext());
            Constant *fc = M.getOrInsertFunction("klee_make_symbolic",
 						  Type::getVoidTy(getGlobalContext()),
                                                    PointerType::getUnqual(i8Ty),
@@ -201,27 +211,47 @@ bool FunctionCallPass::runOnModule(Module &M) {
                                                    PointerType::getUnqual(i8Ty),
                                                    NULL);
            kleeMakeSymbolic = cast<Function>(fc);
-        }
-	Type* tp = ai->getType();     	
-	AllocaInst* arg0 = builder.CreateAlloca(tp);
-        std::vector<Value* > klee_args;
-	klee_args.push_back(builder.CreateBitCast(arg0, 
+        }	
+	Type* tp = ai->getType(); 
+
+	AllocaInst* arg_alloc = builder.CreateAlloca(tp);
+	if(tp->isPointerTy()){
+	    Type* tpp = tp->getPointerElementType();
+	    if(!tp->getContainedType(0)->isPointerTy()){		
+		uint64_t size = datalayout->getTypeAllocSize(tpp);
+		Value* alloc_size = ConstantInt::get(ITy, size);
+		Instruction* mallocIn = builder.CreateCall(mallocFn, alloc_size);
+		builder.CreateAlignedStore(builder.CreateBitCast(mallocIn, tp), arg_alloc, 8);
+		//execute a call to memset
+		Instruction* loadArg = builder.CreateAlignedLoad(arg_alloc, datalayout->getTypeAllocSize(tp));
+		std::vector<Value* > memset_args;
+		memset_args.push_back(builder.CreateBitCast(loadArg, PointerType::getUnqual(i8Ty)));
+		memset_args.push_back(ConstantInt::get(i8Ty, 0));
+		memset_args.push_back(alloc_size);
+		memset_args.push_back(ConstantInt::get(i32Ty, 4));
+		memset_args.push_back(ConstantInt::get(i1Ty, 0));
+		builder.CreateCall(memsetFn, memset_args);
+	    }
+	}
+	
+	if(tp->isFloatTy()||tp->isDoubleTy()||tp->isIntegerTy()){//scalar variable that will be made symbolic
+	  std::vector<Value* > klee_args;
+	  klee_args.push_back(builder.CreateBitCast(arg_alloc, 
 						  kleeMakeSymbolic->getFunctionType()->getParamType(0)));
 	
-	klee_args.push_back(ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
-						   dl->getTypeAllocSize(tp)));
+	  klee_args.push_back(ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+						   datalayout->getTypeAllocSize(tp)));
 	
-	klee_args.push_back(builder.CreateGlobalStringPtr("name"));
+	  klee_args.push_back(builder.CreateGlobalStringPtr("arg_name"));
 
-	// Inject a call to klee_make_symbolic
-	builder.CreateCall(kleeMakeSymbolic, klee_args);
-	args.push_back(builder.CreateAlignedLoad(arg0, dl->getTypeAllocSize(tp) ));
-        moduleChanged = true;
+	  // Inject a call to klee_make_symbolic
+	  builder.CreateCall(kleeMakeSymbolic, klee_args);
+	}
+	args.push_back(builder.CreateAlignedLoad(arg_alloc, datalayout->getTypeAllocSize(tp) ));
       }
        
       // Inject a call to the function
       builder.CreateCall(f, args);
-   //   builder.CreateUnreachable();// I don't know why, but have to do it to avoid the error
       builder.CreateRetVoid();
       moduleChanged = true;
     }
