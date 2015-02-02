@@ -240,7 +240,7 @@ private:
 public:
   KleeHandler(int argc, char **argv);
   ~KleeHandler();
-
+  
   llvm::raw_ostream &getInfoStream() const { return *m_infoFile; }
   unsigned getNumTestCases() { return m_testIndex; }
   unsigned getNumPathsExplored() { return m_pathsExplored; }
@@ -362,6 +362,7 @@ KleeHandler::~KleeHandler() {
   delete m_infoFile;
 }
 
+
 void KleeHandler::setInterpreter(Interpreter *i) {
   m_interpreter = i;
 
@@ -409,7 +410,7 @@ llvm::raw_fd_ostream *KleeHandler::openOutputFile(const std::string &filename) {
 
 std::string KleeHandler::getTestFilename(const std::string &suffix, unsigned id) {
   std::stringstream filename;
-  filename << "test" << std::setfill('0') << std::setw(6) << id << '.' << suffix;
+  filename << getpid() <<"_test" << std::setfill('0') << std::setw(6) << id << '.' << suffix;
   return filename.str();
 }
 
@@ -654,99 +655,6 @@ std::string int2string(int i){
   return buf;
 }
 
-// Dingbao Xie
-/*
-static void instrumentFunctionCall(Module *mainModule){
-   Function *mainFn = mainModule->getFunction("main");
-   Instruction* firstInst = mainFn->begin()->begin();
-
-   for (Module::const_iterator fnIt = mainModule->begin(), fn_ie = mainModule->end(); 
-       fnIt != fn_ie; ++fnIt) {
-    if (!fnIt->isDeclaration() && &(*fnIt)!=mainFn){
-      //printf("Function name: %s\n", fnIt->getName().data());
-      if(fnIt->getName().find("_fake_main")==fnIt->getName().npos)
-	continue;
-      assert(fnIt->arg_size() ==0);
-      Function* fn = mainModule->getFunction(fnIt->getName().data());
-      assert(fn);
-      std::vector<Value*> args;
-       for(Function::arg_iterator ai = fn->arg_begin(), ae = fn->arg_end(); ai != ae; ++ai){
-	Type* tp = ai->getType();      
-	char name[100];
-	sprintf(name, "arg%u", args.size());
-        AllocaInst* arg = new AllocaInst(tp, name, firstInst);
-	//args.push_back(arg);
-      }
-    }    
-  }
-}
-*/
-
-
-
-static int initEnv(Module *mainModule) {
-
-  /*
-    nArgcP = alloc oldArgc->getType()
-    nArgvV = alloc oldArgv->getType()
-    store oldArgc nArgcP
-    store oldArgv nArgvP
-    klee_init_environment(nArgcP, nArgvP)
-    nArgc = load nArgcP
-    nArgv = load nArgvP
-    oldArgc->replaceAllUsesWith(nArgc)
-    oldArgv->replaceAllUsesWith(nArgv)
-  */
-
-  Function *mainFn = mainModule->getFunction("main");
-    
-  if (mainFn->arg_size() < 2) {
-    klee_error("Cannot handle ""--posix-runtime"" when main() has less than two arguments.\n");
-  }
-
-  Instruction* firstInst = mainFn->begin()->begin();
-
-  Value* oldArgc = mainFn->arg_begin();
-  Value* oldArgv = ++mainFn->arg_begin();
-  
-  AllocaInst* argcPtr = 
-    new AllocaInst(oldArgc->getType(), "argcPtr", firstInst);
-  AllocaInst* argvPtr = 
-    new AllocaInst(oldArgv->getType(), "argvPtr", firstInst);
-
-  /* Insert void klee_init_env(int* argc, char*** argv) */
-  std::vector<const Type*> params;
-  params.push_back(Type::getInt32Ty(getGlobalContext()));
-  params.push_back(Type::getInt32Ty(getGlobalContext()));
-  Function* initEnvFn = 
-    cast<Function>(mainModule->getOrInsertFunction("klee_init_env",
-                                                   Type::getVoidTy(getGlobalContext()),
-                                                   argcPtr->getType(),
-                                                   argvPtr->getType(),
-                                                   NULL));
-  assert(initEnvFn);    
-  std::vector<Value*> args;
-  args.push_back(argcPtr);
-  args.push_back(argvPtr);
-#if LLVM_VERSION_CODE >= LLVM_VERSION(3, 0)
-  Instruction* initEnvCall = CallInst::Create(initEnvFn, args,
-					      "", firstInst);
-#else
-  Instruction* initEnvCall = CallInst::Create(initEnvFn, args.begin(), args.end(), 
-					      "", firstInst);
-#endif
-  Value *argc = new LoadInst(argcPtr, "newArgc", firstInst);
-  Value *argv = new LoadInst(argvPtr, "newArgv", firstInst);
-  
-  oldArgc->replaceAllUsesWith(argc);
-  oldArgv->replaceAllUsesWith(argv);
-
-  new StoreInst(oldArgc, argcPtr, initEnvCall);
-  new StoreInst(oldArgv, argvPtr, initEnvCall);
-
-  return 0;
-}
-
 
 // This is a terrible hack until we get some real modeling of the
 // system. All we do is check the undefined symbols and warn about
@@ -920,7 +828,6 @@ void externalsAndGlobalsCheck(const Module *m) {
     break;
   }
   
-
   if (WithPOSIXRuntime)
     dontCare.insert("syscall");
 
@@ -1195,11 +1102,11 @@ static llvm::Module *linkWithUclibc(llvm::Module *mainModule, StringRef libDir) 
 }
 #endif
 
-static int runInFunctionLevel(Module *mainModule, Interpreter *interpreter, 
-		        int argc, char **argv, char **envp){
-//   Function *mainFn = mainModule->getFunction("main");
 
-   for (Module::const_iterator fnIt = mainModule->begin(), fn_ie = mainModule->end(); 
+static int runInFunctionLevel(const llvm::Module *mainModule, int pArgc, char **pArgv, char **envp,
+			    Interpreter* interpreter, KleeHandler* handler){
+
+  for (Module::const_iterator fnIt = mainModule->begin(), fn_ie = mainModule->end(); 
        fnIt != fn_ie; ++fnIt) {
     if (!fnIt->isDeclaration()){
       StringRef fName = fnIt->getName();
@@ -1223,7 +1130,6 @@ static int runInFunctionLevel(Module *mainModule, Interpreter *interpreter,
 	while (1) {
 	  sleep(1);
 	  int status, res = waitpid(pid, &status, WNOHANG);
-
 	  if (res < 0) {
 	    if (errno==ECHILD) { // No child, no need to watch but
                                // return error since we didn't catch
@@ -1251,24 +1157,74 @@ static int runInFunctionLevel(Module *mainModule, Interpreter *interpreter,
 		kill(pid, SIGKILL);
 		break;
 	      }
-
 	      // Ideally this triggers a dump, which may take a while,
 	      // so try and give the process extra time to clean up.
 	      nextStep = util::getWallTime() + std::max(15., MaxTime*.1);
 	    }
 	  }
 	}
-
     }
-     else if(pid == 0){//chid process  
-	interpreter->runFunctionAsMain(fn, argc, argv, envp);
+     else if(pid == 0){ //chid process  
+	llvm::raw_ostream &infoFile = handler->getInfoStream();
+	infoFile << "PID: " << getpid() << "\n";
+	char buf[256];
+	time_t t[2];
+	t[0] = time(NULL);
+	strftime(buf, sizeof(buf), "Started: %Y-%m-%d %H:%M:%S\n", localtime(&t[0]));
+	infoFile << buf;
+	infoFile.flush();
+	interpreter->runFunctionAsMain(fn, pArgc, pArgv, envp);
+	//print information
+	uint64_t queries = 
+	  *theStatisticManager->getStatisticByName("Queries");
+	uint64_t queriesValid = 
+	  *theStatisticManager->getStatisticByName("QueriesValid");
+	uint64_t queriesInvalid = 
+	  *theStatisticManager->getStatisticByName("QueriesInvalid");
+	uint64_t queryCounterexamples = 
+	  *theStatisticManager->getStatisticByName("QueriesCEX");
+	uint64_t queryConstructs = 
+	  *theStatisticManager->getStatisticByName("QueriesConstructs");
+	uint64_t instructions = 
+	  *theStatisticManager->getStatisticByName("Instructions");
+	uint64_t forks = 
+	  *theStatisticManager->getStatisticByName("Forks");
+	handler->getInfoStream() 
+	  << "KLEE: done: explored paths = " << 1 + forks << "\n";
+	// Write some extra information in the info file which users won't
+	// necessarily care about or understand.
+	if (queries)
+	  handler->getInfoStream() 
+	    << "KLEE: done: avg. constructs per query = " 
+                             << queryConstructs / queries << "\n";  
+	  handler->getInfoStream() 
+	    << "KLEE: done: total queries = " << queries << "\n"
+	    << "KLEE: done: valid queries = " << queriesValid << "\n"
+	    << "KLEE: done: invalid queries = " << queriesInvalid << "\n"
+	    << "KLEE: done: query cex = " << queryCounterexamples << "\n";
+	  std::stringstream stats;
+	  stats << "\n";
+	  stats << "KLEE: done: total instructions = " 
+	      << instructions << "\n";
+	  stats << "KLEE: done: completed paths = " 
+	      << handler->getNumPathsExplored() << "\n";
+	  stats << "KLEE: done: generated tests = " 
+	    << handler->getNumTestCases() << "\n";
+	  bool useColors = llvm::errs().is_displayed();
+	  if (useColors)
+	    llvm::errs().changeColor(llvm::raw_ostream::GREEN,
+                             /*bold=*/true,
+                             /*bg=*/false);
+	  llvm::errs() << stats.str();
+	  if (useColors)
+	    llvm::errs().resetColor();
+	    handler->getInfoStream() << stats.str();	
 	return 1;
      }
     }    
   }
   return 0;
 }
-
 
 int main(int argc, char **argv, char **envp) {  
 #if ENABLE_STPLOG == 1
@@ -1278,82 +1234,19 @@ int main(int argc, char **argv, char **envp) {
   llvm::InitializeNativeTarget();
   parseArguments(argc, argv);
   sys::PrintStackTraceOnErrorSignal();
-
-  if (Watchdog) {
-    if (MaxTime == 0) {
-      klee_error("--watchdog used without --max-time");
-    }
-    int pid = fork();
-    if (pid < 0) {
-      klee_error("unable to fork watchdog");
-    } else if (pid) {
-      fprintf(stderr, "KLEE: WATCHDOG: watching %d\n", pid);
-      fflush(stderr);
-      sys::SetInterruptFunction(interrupt_handle_watchdog);
-
-      double nextStep = util::getWallTime() + MaxTime*1.1;
-      int level = 0;
-
-      // Simple stupid code...
-      while (1) {
-        sleep(1);
-
-        int status, res = waitpid(pid, &status, WNOHANG);
-
-        if (res < 0) {
-          if (errno==ECHILD) { // No child, no need to watch but
-                               // return error since we didn't catch
-                               // the exit.
-            fprintf(stderr, "KLEE: watchdog exiting (no child)\n");
-            return 1;
-          } else if (errno!=EINTR) {
-            perror("watchdog waitpid");
-            exit(1);
-          }
-        } else if (res==pid && WIFEXITED(status)) {
-          return WEXITSTATUS(status);
-        } else {
-          double time = util::getWallTime();
-          if (time > nextStep) {
-            ++level;
-            if (level==1) {
-              fprintf(stderr, "KLEE: WATCHDOG: time expired, attempting halt via INT\n");
-              kill(pid, SIGINT);
-            } else if (level==2) {
-              fprintf(stderr, "KLEE: WATCHDOG: time expired, attempting halt via gdb\n");
-              halt_via_gdb(pid);
-            } else {
-              fprintf(stderr, "KLEE: WATCHDOG: kill(9)ing child (I tried to be nice)\n");
-              kill(pid, SIGKILL);
-              return 1; // what more can we do
-            }
-
-            // Ideally this triggers a dump, which may take a while,
-            // so try and give the process extra time to clean up.
-            nextStep = util::getWallTime() + std::max(15., MaxTime*.1);
-          }
-        }
-      }
-
-      return 0;
-    }
-  }
-
   sys::SetInterruptFunction(interrupt_handle);
 
   // Load the bytecode...
   std::string ErrorMsg;
   Module *mainModule = 0;
-#if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
+
   OwningPtr<MemoryBuffer> BufferPtr;
   error_code ec=MemoryBuffer::getFileOrSTDIN(InputFile.c_str(), BufferPtr);
   if (ec) {
     klee_error("error loading program '%s': %s", InputFile.c_str(),
                ec.message().c_str());
   }
-
   mainModule = getLazyBitcodeModule(BufferPtr.get(), getGlobalContext(), &ErrorMsg);
-
   if (mainModule) {
     if (mainModule->MaterializeAllPermanently(&ErrorMsg)) {
       delete mainModule;
@@ -1363,42 +1256,11 @@ int main(int argc, char **argv, char **envp) {
   if (!mainModule)
     klee_error("error loading program '%s': %s", InputFile.c_str(),
                ErrorMsg.c_str());
-#else
-  auto Buffer = MemoryBuffer::getFileOrSTDIN(InputFile.c_str());
-  if (!Buffer)
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               Buffer.getError().message().c_str());
 
-  auto mainModuleOrError = getLazyBitcodeModule(Buffer->get(), getGlobalContext());
-
-  if (!mainModuleOrError) {
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               mainModuleOrError.getError().message().c_str());
-  }
-  else {
-    // The module has taken ownership of the MemoryBuffer so release it
-    // from the std::unique_ptr
-    Buffer->release();
-  }
-
-  mainModule = *mainModuleOrError;
-  if (auto ec = mainModule->materializeAllPermanently()) {
-    klee_error("error loading program '%s': %s", InputFile.c_str(),
-               ec.message().c_str());
-  }
-#endif
-//add a pass to instrument a call to veery function
-  if(FunctionLevel){
-    PassManager pm;
-    pm.add(new FunctionCallPass());
-    pm.run(*mainModule);
-  }
-
-  if (WithPOSIXRuntime) {
-    int r = initEnv(mainModule);
-    if (r != 0)
-      return r;
-  }
+//add a function pass to instrument calls to functions
+  PassManager pm;
+  pm.add(new FunctionCallPass());
+  pm.run(*mainModule);
 
   std::string LibraryDir = KleeHandler::getRunTimeLibraryPath(argv[0]);
   Interpreter::ModuleOptions Opts(LibraryDir.c_str(),
@@ -1408,7 +1270,6 @@ int main(int argc, char **argv, char **envp) {
   switch (Libc) {
   case NoLibc: /* silence compiler warning */
     break;
-
   case KleeLibc: {
     // FIXME: Find a reasonable solution for this.
     SmallString<128> Path(Opts.LibraryDir);
@@ -1427,47 +1288,10 @@ int main(int argc, char **argv, char **envp) {
     break;
   }
 
-  if (WithPOSIXRuntime) {
-    SmallString<128> Path(Opts.LibraryDir);
-    llvm::sys::path::append(Path, "libkleeRuntimePOSIX.bca");
-    klee_message("NOTE: Using model: %s", Path.c_str());
-    mainModule = klee::linkWithLibrary(mainModule, Path.c_str());
-    assert(mainModule && "unable to link with simple model");
-  }  
-
-  // Get the desired main function.  klee_main initializes uClibc
-  // locale and other data and then calls main.
-  Function *mainFn = mainModule->getFunction("main");
-  if (!mainFn) {
-    llvm::errs() << "'main' function not found in module.\n";
-    return -1;
-  }
-
   // FIXME: Change me to std types.
   int pArgc;
   char **pArgv;
-  char **pEnvp;
-  if (Environ != "") {
-    std::vector<std::string> items;
-    std::ifstream f(Environ.c_str());
-    if (!f.good())
-      klee_error("unable to open --environ file: %s", Environ.c_str());
-    while (!f.eof()) {
-      std::string line;
-      std::getline(f, line);
-      line = strip(line);
-      if (!line.empty())
-        items.push_back(line);
-    }
-    f.close();
-    pEnvp = new char *[items.size()+1];
-    unsigned i=0;
-    for (; i != items.size(); ++i)
-      pEnvp[i] = strdup(items[i].c_str());
-    pEnvp[i] = 0;
-  } else {
-    pEnvp = envp;
-  }
+  char **pEnvp = envp;
 
   pArgc = InputArgv.size() + 1; 
   pArgv = new char *[pArgc];
@@ -1481,210 +1305,35 @@ int main(int argc, char **argv, char **envp) {
     
     pArgv[i] = pArg;
   }
-  std::vector<bool> replayPath;
 
-  if (ReplayPathFile != "") {
-    KleeHandler::loadPathFile(ReplayPathFile, replayPath);
-  }
-
+  Interpreter *interpreter;
+  KleeHandler *handler;
   Interpreter::InterpreterOptions IOpts;
   IOpts.MakeConcreteSymbolic = MakeConcreteSymbolic;
-  KleeHandler *handler = new KleeHandler(pArgc, pArgv);
-  Interpreter *interpreter = 
-    theInterpreter = Interpreter::create(IOpts, handler);
-  handler->setInterpreter(interpreter);
 
+  handler = new KleeHandler(pArgc, pArgv);
+  interpreter = theInterpreter = Interpreter::create(IOpts, handler);
+  handler->setInterpreter(interpreter);
+  
   llvm::raw_ostream &infoFile = handler->getInfoStream();
   for (int i=0; i<argc; i++) {
-    infoFile << argv[i] << (i+1<argc ? " ":"\n");
-  }
-  infoFile << "PID: " << getpid() << "\n";
+      infoFile << argv[i] << (i+1<argc ? " ":"\n");
+   }
 
-  const Module *finalModule = 
-    interpreter->setModule(mainModule, Opts);
-  externalsAndGlobalsCheck(finalModule);
-
-  if (ReplayPathFile != "") {
-    interpreter->setReplayPath(&replayPath);
-  }
-
-  char buf[256];
-  time_t t[2];
-  t[0] = time(NULL);
-  strftime(buf, sizeof(buf), "Started: %Y-%m-%d %H:%M:%S\n", localtime(&t[0]));
-  infoFile << buf;
-  infoFile.flush();
-
-  if (!ReplayOutDir.empty() || !ReplayOutFile.empty()) {
-    assert(SeedOutFile.empty());
-    assert(SeedOutDir.empty());
-
-    std::vector<std::string> outFiles = ReplayOutFile;
-    for (std::vector<std::string>::iterator
-           it = ReplayOutDir.begin(), ie = ReplayOutDir.end();
-         it != ie; ++it)
-      KleeHandler::getOutFiles(*it, outFiles);    
-    std::vector<KTest*> kTests;
-    for (std::vector<std::string>::iterator
-           it = outFiles.begin(), ie = outFiles.end();
-         it != ie; ++it) {
-      KTest *out = kTest_fromFile(it->c_str());
-      if (out) {
-        kTests.push_back(out);
-      } else {
-        llvm::errs() << "KLEE: unable to open: " << *it << "\n";
-      }
-    }
-
-    if (RunInDir != "") {
-      int res = chdir(RunInDir.c_str());
-      if (res < 0) {
-        klee_error("Unable to change directory to: %s", RunInDir.c_str());
-      }
-    }
-
-    unsigned i=0;
-    for (std::vector<KTest*>::iterator
-           it = kTests.begin(), ie = kTests.end();
-         it != ie; ++it) {
-      KTest *out = *it;
-      interpreter->setReplayOut(out);
-      llvm::errs() << "KLEE: replaying: " << *it << " (" << kTest_numBytes(out)
-                   << " bytes)"
-                   << " (" << ++i << "/" << outFiles.size() << ")\n";
-      // XXX should put envp in .ktest ?
-      interpreter->runFunctionAsMain(mainFn, out->numArgs, out->args, pEnvp);
-      if (interrupted) break;
-    }
-    interpreter->setReplayOut(0);
-    while (!kTests.empty()) {
-      kTest_free(kTests.back());
-      kTests.pop_back();
-    }
-  } else {
-    std::vector<KTest *> seeds;
-    for (std::vector<std::string>::iterator
-           it = SeedOutFile.begin(), ie = SeedOutFile.end();
-         it != ie; ++it) {
-      KTest *out = kTest_fromFile(it->c_str());
-      if (!out) {
-        llvm::errs() << "KLEE: unable to open: " << *it << "\n";
-        exit(1);
-      }
-      seeds.push_back(out);
-    } 
-    for (std::vector<std::string>::iterator
-           it = SeedOutDir.begin(), ie = SeedOutDir.end();
-         it != ie; ++it) {
-      std::vector<std::string> outFiles;
-      KleeHandler::getOutFiles(*it, outFiles);
-      for (std::vector<std::string>::iterator
-             it2 = outFiles.begin(), ie = outFiles.end();
-           it2 != ie; ++it2) {
-        KTest *out = kTest_fromFile(it2->c_str());
-        if (!out) {
-          llvm::errs() << "KLEE: unable to open: " << *it2 << "\n";
-          exit(1);
-        }
-        seeds.push_back(out);
-      }
-      if (outFiles.empty()) {
-        llvm::errs() << "KLEE: seeds directory is empty: " << *it << "\n";
-        exit(1);
-      }
-    }
-       
-    if (!seeds.empty()) {
-      llvm::errs() << "KLEE: using " << seeds.size() << " seeds\n";
-      interpreter->useSeeds(&seeds);
-    }
-    if (RunInDir != "") {
-      int res = chdir(RunInDir.c_str());
-      if (res < 0) {
-        klee_error("Unable to change directory to: %s", RunInDir.c_str());
-      }
-    }
-    //run the program in function level
-    if(FunctionLevel){
-      if(runInFunctionLevel(mainModule, interpreter, pArgc, pArgv, pEnvp))
-	exit(1);
-    }
-    else
-      interpreter->runFunctionAsMain(mainFn, pArgc, pArgv, pEnvp);//start symbolic execution
+   const Module *finalModule = 
+      interpreter->setModule(mainModule, Opts);
+   externalsAndGlobalsCheck(finalModule);
+  
+  //run the program in function level
+  runInFunctionLevel(finalModule, pArgc, pArgv, envp, interpreter, handler);
     
-    while (!seeds.empty()) {
-      kTest_free(seeds.back());
-      seeds.pop_back();
-    }
-  }
-      
-  t[1] = time(NULL);
-  strftime(buf, sizeof(buf), "Finished: %Y-%m-%d %H:%M:%S\n", localtime(&t[1]));
-  infoFile << buf;
-
-  strcpy(buf, "Elapsed: ");
-  strcpy(format_tdiff(buf, t[1] - t[0]), "\n");
-  infoFile << buf;
-
-  // Free all the args.
-  for (unsigned i=0; i<InputArgv.size()+1; i++)
-    delete[] pArgv[i];
-  delete[] pArgv;
-
-  delete interpreter;
-
-  uint64_t queries = 
-    *theStatisticManager->getStatisticByName("Queries");
-  uint64_t queriesValid = 
-    *theStatisticManager->getStatisticByName("QueriesValid");
-  uint64_t queriesInvalid = 
-    *theStatisticManager->getStatisticByName("QueriesInvalid");
-  uint64_t queryCounterexamples = 
-    *theStatisticManager->getStatisticByName("QueriesCEX");
-  uint64_t queryConstructs = 
-    *theStatisticManager->getStatisticByName("QueriesConstructs");
-  uint64_t instructions = 
-    *theStatisticManager->getStatisticByName("Instructions");
-  uint64_t forks = 
-    *theStatisticManager->getStatisticByName("Forks");
-
-  handler->getInfoStream() 
-    << "KLEE: done: explored paths = " << 1 + forks << "\n";
-
-  // Write some extra information in the info file which users won't
-  // necessarily care about or understand.
-  if (queries)
-    handler->getInfoStream() 
-      << "KLEE: done: avg. constructs per query = " 
-                             << queryConstructs / queries << "\n";  
-  handler->getInfoStream() 
-    << "KLEE: done: total queries = " << queries << "\n"
-    << "KLEE: done: valid queries = " << queriesValid << "\n"
-    << "KLEE: done: invalid queries = " << queriesInvalid << "\n"
-    << "KLEE: done: query cex = " << queryCounterexamples << "\n";
-
-  std::stringstream stats;
-  stats << "\n";
-  stats << "KLEE: done: total instructions = " 
-        << instructions << "\n";
-  stats << "KLEE: done: completed paths = " 
-        << handler->getNumPathsExplored() << "\n";
-  stats << "KLEE: done: generated tests = " 
-        << handler->getNumTestCases() << "\n";
-
-  bool useColors = llvm::errs().is_displayed();
-  if (useColors)
-    llvm::errs().changeColor(llvm::raw_ostream::GREEN,
-                             /*bold=*/true,
-                             /*bg=*/false);
-
-  llvm::errs() << stats.str();
-
-  if (useColors)
-    llvm::errs().resetColor();
-
-  handler->getInfoStream() << stats.str();
-
+   
+    // Free all the args.
+    for (unsigned i=0; i<InputArgv.size()+1; i++)
+      delete[] pArgv[i];
+    delete[] pArgv;
+    delete interpreter;
+   
 #if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
   // FIXME: This really doesn't look right
   // This is preventing the module from being
@@ -1695,3 +1344,4 @@ int main(int argc, char **argv, char **envp) {
 
   return 0;
 }
+

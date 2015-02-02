@@ -213,11 +213,11 @@ bool FunctionCallPass::runOnModule(Module &M) {
            kleeMakeSymbolic = cast<Function>(fc);
         }	
 	Type* tp = ai->getType(); 
-
+	
 	AllocaInst* arg_alloc = builder.CreateAlloca(tp);
 	if(tp->isPointerTy()){
 	    Type* tpp = tp->getPointerElementType();
-	    if(!tp->getContainedType(0)->isPointerTy()){		
+	    if(!tp->getContainedType(0)->isPointerTy() && tpp->isSized()){//check whether tpp is sized	
 		uint64_t size = datalayout->getTypeAllocSize(tpp);
 		Value* alloc_size = ConstantInt::get(ITy, size);
 		Instruction* mallocIn = builder.CreateCall(mallocFn, alloc_size);
