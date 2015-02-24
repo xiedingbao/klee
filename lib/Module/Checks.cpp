@@ -165,38 +165,32 @@ bool FunctionCallPass::runOnModule(Module &M) {
   //FIXME  ITY is an integer that can hold a pointer
   Type* ITy = Type::getInt64Ty(getGlobalContext());
   Type *i32Ty = Type::getInt32Ty(getGlobalContext());
+  Type *i64Ty = Type::getInt64Ty(getGlobalContext());
   Type *i1Ty = Type::getInt1Ty(getGlobalContext());
   
   bool moduleChanged = false;
-  Function *mainFn = M.getFunction("main");
-  assert(mainFn);
-  Function* mallocFn = M.getFunction("malloc");
-  assert(mallocFn && "can not find function malloc");
+
   std::vector<Type *> arg_type;
   arg_type.push_back(PointerType::getUnqual(i8Ty));
   arg_type.push_back(ITy);
   Function* memsetFn =  Intrinsic::getDeclaration(&M, Intrinsic::memset, arg_type);
-  assert(memsetFn && "can not find function memset");
-
-#if LLVM_VERSION_CODE <= LLVM_VERSION(3, 1)
-  TargetDate* datalayout = new TargetDate(&M); 
-#else
-  DataLayout* datalayout = new DataLayout(&M); 
-#endif
-
+  assert(memsetFn && "can not find Intrinsic: memset");
+  Constant *fc = M.getOrInsertFunction("malloc", PointerType::getUnqual(i8Ty), i64Ty, NULL);
+  Function* mallocFn = cast<Function>(fc);
+  assert(mallocFn && "can not find function: malloc");
   
+  DataLayout* datalayout = new DataLayout(&M); 
+
   for (Module::iterator f = M.begin(), fe = M.end(); f != fe; ++f) {
-     if (!f->isDeclaration() && &(*f)!=mainFn){
-      if(f->getName().endswith("_fake_main"))
+     if (!f->isDeclaration()){
+      if(f->getName().endswith("_fake_main") || f->getName().equals("main"))
 	continue;
       std::vector<llvm::Value*> args;
       std::string fName = f->getName().str();
 //      printf("instrument a call to function: %s\n", fName.c_str());
       std::vector<LLVM_TYPE_Q Type*> fArgs;
       Function *fakeMain = Function::Create(FunctionType::get(Type::getVoidTy(getGlobalContext()), fArgs, false),
-      			      GlobalVariable::ExternalLinkage,
-      			      Twine(fName+"_fake_main"),
-			      &M);
+      			      GlobalVariable::ExternalLinkage, Twine(fName+"_fake_main"), &M);
       moduleChanged = true;
       BasicBlock *bb = BasicBlock::Create(getGlobalContext(), "entry", fakeMain);
       IRBuilder<> builder(bb, bb->begin());
@@ -234,22 +228,19 @@ bool FunctionCallPass::runOnModule(Module &M) {
 	    }
 	}
 	
-	if(tp->isFloatTy()||tp->isDoubleTy()||tp->isIntegerTy()){//scalar variable that will be made symbolic
+	if(tp->isFloatTy()||tp->isDoubleTy()||tp->isIntegerTy()){//make scalar variable symbolic
 	  std::vector<Value* > klee_args;
 	  klee_args.push_back(builder.CreateBitCast(arg_alloc, 
 						  kleeMakeSymbolic->getFunctionType()->getParamType(0)));
-	
+	  
 	  klee_args.push_back(ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
 						   datalayout->getTypeAllocSize(tp)));
-	
 	  klee_args.push_back(builder.CreateGlobalStringPtr("arg_name"));
-
 	  // Inject a call to klee_make_symbolic
 	  builder.CreateCall(kleeMakeSymbolic, klee_args);
 	}
 	args.push_back(builder.CreateAlignedLoad(arg_alloc, datalayout->getTypeAllocSize(tp) ));
       }
-       
       // Inject a call to the function
       builder.CreateCall(f, args);
       builder.CreateRetVoid();
