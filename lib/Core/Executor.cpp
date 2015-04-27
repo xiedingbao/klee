@@ -2701,17 +2701,17 @@ void Executor::terminateState(ExecutionState &state) {
 
 void Executor::terminateStateEarly(ExecutionState &state, 
                                    const Twine &message) {
-  if (!OnlyOutputStatesCoveringNew || state.coveredNew ||
-      (AlwaysOutputSeeds && seedMap.count(&state)))
-    interpreterHandler->processTestCase(state, (message + "\n").str().c_str(),
-                                        "early");
+//  if (!OnlyOutputStatesCoveringNew || state.coveredNew ||
+//      (AlwaysOutputSeeds && seedMap.count(&state)))
+//    interpreterHandler->processTestCase(state, (message + "\n").str().c_str(),
+//                                        "early");
   terminateState(state);
 }
 
 void Executor::terminateStateOnExit(ExecutionState &state) {
-  if (!OnlyOutputStatesCoveringNew || state.coveredNew || 
-      (AlwaysOutputSeeds && seedMap.count(&state)))
-    interpreterHandler->processTestCase(state, 0, 0);
+//  if (!OnlyOutputStatesCoveringNew || state.coveredNew || 
+//      (AlwaysOutputSeeds && seedMap.count(&state)))
+//    interpreterHandler->processTestCase(state, 0, 0);
   terminateState(state);
 }
 
@@ -2791,7 +2791,7 @@ void Executor::terminateStateOnError(ExecutionState &state,
     if (info_str != "")
       msg << "Info: \n" << info_str;
 
-    interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
+//    interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
   }
     
   terminateState(state);
@@ -2829,7 +2829,8 @@ void Executor::handleUndefinedBehavior(ExecutionState &state,
     std::string info_str = info.str();
     if (info_str != "")
     msg << "Info: \n" << info_str;
-    interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
+    if (!OnlyOutputStatesCoveringNew || state.coveredNew)
+      interpreterHandler->processTestCase(state, msg.str().c_str(), suffix);
   }
 }
 

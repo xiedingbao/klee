@@ -227,7 +227,7 @@ private:
   Interpreter *m_interpreter;
   TreeStreamWriter *m_pathWriter, *m_symPathWriter;
   llvm::raw_ostream *m_infoFile;
-
+  std::string fnName;
   SmallString<128> m_outputDirectory;
 
   unsigned m_testIndex;  // number of tests written so far
@@ -247,7 +247,7 @@ public:
   void incPathsExplored() { m_pathsExplored++; }
 
   void setInterpreter(Interpreter *i);
-
+  void setRunFunction(std::string _name) {fnName = _name;}
   void processTestCase(const ExecutionState  &state,
                        const char *errorMessage, 
                        const char *errorSuffix);
@@ -410,7 +410,7 @@ llvm::raw_fd_ostream *KleeHandler::openOutputFile(const std::string &filename) {
 
 std::string KleeHandler::getTestFilename(const std::string &suffix, unsigned id) {
   std::stringstream filename;
-  filename << getpid() <<"_test" << std::setfill('0') << std::setw(6) << id << '.' << suffix;
+  filename << fnName <<"@test" << std::setfill('0') << std::setw(6) << id << '.' << suffix;
   return filename.str();
 }
 
@@ -456,6 +456,7 @@ void KleeHandler::processTestCase(const ExecutionState &state,
         o->bytes = new unsigned char[o->numBytes];
         assert(o->bytes);
         std::copy(out[i].second.begin(), out[i].second.end(), o->bytes);
+	
       }
       
       if (!kTest_toFile(&b, getOutputFilename(getTestFilename("ktest", id)).c_str())) {
@@ -1113,15 +1114,14 @@ static int runInFunctionLevel(const llvm::Module *mainModule, int pArgc, char **
       if(!fName.endswith("_fake_main"))
 	continue;   
       fprintf(stderr, "Start running from function %s\n", fName.data());
-      Function* fn = mainModule->getFunction(fName.data());
-      assert(fn);     
+      handler->setRunFunction(fName.str());
+      Function* fn = mainModule->getFunction(fName.data());     
       if(MaxTime == 0)
 	MaxTime = 100;
       int pid = fork();
       if (pid < 0) {
 	klee_error("unable to fork watchdog");
       } else if (pid) {
-	//fprintf(stderr, "KLEE: WATCHDOG: watching %d\n", pid);
 	fflush(stderr);
 	sys::SetInterruptFunction(interrupt_handle_watchdog);
 	double nextStep = util::getWallTime() + MaxTime*1.1;
@@ -1242,10 +1242,12 @@ int main(int argc, char **argv, char **envp) {
 
   OwningPtr<MemoryBuffer> BufferPtr;
   error_code ec=MemoryBuffer::getFileOrSTDIN(InputFile.c_str(), BufferPtr);
+
   if (ec) {
     klee_error("error loading program '%s': %s", InputFile.c_str(),
                ec.message().c_str());
   }
+  
   mainModule = getLazyBitcodeModule(BufferPtr.get(), getGlobalContext(), &ErrorMsg);
   if (mainModule) {
     if (mainModule->MaterializeAllPermanently(&ErrorMsg)) {
@@ -1320,20 +1322,19 @@ int main(int argc, char **argv, char **envp) {
       infoFile << argv[i] << (i+1<argc ? " ":"\n");
    }
 
-   const Module *finalModule = 
-      interpreter->setModule(mainModule, Opts);
+   const Module *finalModule = interpreter->setModule(mainModule, Opts);
    externalsAndGlobalsCheck(finalModule);
   
   //run the program in function level
-  runInFunctionLevel(finalModule, pArgc, pArgv, envp, interpreter, handler);
+   runInFunctionLevel(finalModule, pArgc, pArgv, envp, interpreter, handler);
     
    
-    // Free all the args.
+
+   // Free all the args.
     for (unsigned i=0; i<InputArgv.size()+1; i++)
       delete[] pArgv[i];
     delete[] pArgv;
-    delete interpreter;
-   
+    delete interpreter;  
 #if LLVM_VERSION_CODE < LLVM_VERSION(3, 5)
   // FIXME: This really doesn't look right
   // This is preventing the module from being
